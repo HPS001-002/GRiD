@@ -1,0 +1,42 @@
+version: "3.9"
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: grid-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: grid
+      MYSQL_USER: grid
+      MYSQL_PASSWORD: gridpassword
+      MYSQL_ROOT_PASSWORD: rootpassword_change_me
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+
+  backend:
+    build: ./backend
+    image: ghcr.io/hps001-002/grid-backend:latest
+    container_name: grid-backend
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: "3306"
+      MYSQL_DATABASE: grid
+      MYSQL_USER: grid
+      MYSQL_PASSWORD: gridpassword
+      JWT_SECRET: change_me_in_prod
+      # GRID_DISABLE_AUTH: "true"
+      DATA_DIR: /data
+    volumes:
+      - ./data/backend:/data
+
+  frontend:
+    build: ./frontend
+    image: ghcr.io/hps001-002/grid-frontend:latest
+    container_name: grid
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "7420:80"

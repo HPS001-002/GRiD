@@ -1,0 +1,999 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Server Dashboard</title>
+
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self' https: data: blob:;
+                 img-src 'self' https: data: blob:;
+                 style-src 'self' 'unsafe-inline' https:;
+                 script-src 'self' 'unsafe-inline' https:;
+                 connect-src 'self' https: wss:;">
+
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#020617;
+      --card:#0b1426;
+      --text:#e5e7eb;
+      --muted:rgba(148,163,184,.92);
+      --accent:#2563eb;
+      --danger:#dc2626;
+      --border:rgba(148,163,184,.18);
+      --shadow:0 16px 44px rgba(0,0,0,.42);
+      --shadowSoft:0 10px 26px rgba(0,0,0,.28);
+      --chip:rgba(255,255,255,.06);
+      --chip2:rgba(255,255,255,.04);
+      --chipBorder:rgba(148,163,184,.18);
+    }
+    html[data-theme="light"]{
+      --bg:#f6f8fc;
+      --panel:#ffffff;
+      --card:#ffffff;
+      --text:#0b1220;
+      --muted:rgba(71,85,105,.92);
+      --border:rgba(2,6,23,.12);
+      --shadow:0 16px 44px rgba(2,6,23,.18);
+      --shadowSoft:0 10px 26px rgba(2,6,23,.12);
+      --chip:rgba(2,6,23,.06);
+      --chip2:rgba(2,6,23,.04);
+      --chipBorder:rgba(2,6,23,.12);
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      background:
+        radial-gradient(900px 650px at 12% -8%, rgba(37,99,235,.18), transparent 60%),
+        radial-gradient(900px 650px at 112% 0%, rgba(14,165,233,.14), transparent 60%),
+        var(--bg);
+      color:var(--text);
+      display:flex;
+      height:100vh;
+      transition:background .2s ease,color .2s ease;
+    }
+
+    /* Sidebar */
+    aside{
+      width:280px;
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      background-color:var(--panel);
+      border-right:1px solid var(--border);
+      padding:18px;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+      overflow:visible;
+      transition:width .22s ease, padding .22s ease;
+    }
+    body.sidebar-collapsed aside{width:80px;padding:16px 12px;}
+    .brand{
+      display:flex; align-items:center; gap:12px;
+      padding:10px 10px 14px;
+      border-bottom:1px solid var(--border);
+    }
+    .logo{
+      width:44px;height:44px;border-radius:16px;
+      background:linear-gradient(135deg, rgba(14,165,233,.95), rgba(37,99,235,.92));
+      box-shadow:var(--shadowSoft);
+      flex:0 0 auto;
+      overflow:hidden;
+    }
+    .logo img{width:100%;height:100%;object-fit:cover;display:block}
+    .brand-title{font-weight:950; letter-spacing:.2px}
+    .brand-sub{font-size:12px;color:var(--muted); margin-top:2px}
+    body.sidebar-collapsed .brand{justify-content:center;padding:10px 0 14px;}
+    body.sidebar-collapsed .brand-text{display:none;}
+
+    .side-actions{display:flex;flex-direction:column;gap:10px;padding:8px 4px;}
+    .sidebar-footer{
+      margin-top:auto;
+      display:flex;flex-direction:column;gap:10px;
+      padding:10px 4px 0;
+      border-top:1px solid var(--border);
+    }
+
+    /* Sidebar buttons + icons only when collapsed */
+    .btn{
+      width:100%;
+      display:inline-flex;
+      align-items:center;
+      justify-content:flex-start;
+      gap:10px;
+      padding:10px 14px;
+      border-radius:14px;
+      border:1px solid var(--chipBorder);
+      background:var(--chip);
+      color:var(--text);
+      font-weight:900;
+      cursor:pointer;
+      transition:transform .08s ease, opacity .15s ease, background .15s ease;
+    }
+    .btn:hover{opacity:.94}
+    .btn:active{transform:translateY(1px)}
+    .btn.primary{background:linear-gradient(180deg, rgba(14,165,233,.95), rgba(37,99,235,.92)); color:#fff; border-color:rgba(14,165,233,.35);}
+    .btn:disabled{opacity:.45; cursor:not-allowed}
+    .btn .icon{
+      display:none;
+      width:22px;height:22px;
+      align-items:center;justify-content:center;
+      font-size:18px;line-height:1;
+      flex:0 0 auto;
+    }
+    body.sidebar-collapsed .btn .label{display:none;}
+    body.sidebar-collapsed .btn .icon{display:inline-flex;}
+    body.sidebar-collapsed .btn{justify-content:center;padding:10px 0;}
+
+    /* Main */
+    main{flex:1;padding:28px;overflow:auto;}
+    h1{margin:0 0 10px 0;font-size:30px;letter-spacing:.2px}
+    .hint{color:var(--muted);font-size:13px;margin:0 0 14px 0}
+    .warn{
+      display:none;
+      margin:0 0 14px 0;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:rgba(220,38,38,.12);
+      color:var(--text);
+    }
+
+    /* Grid + card */
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;}
+    .card{
+      position:relative;
+      border-radius:26px;
+      padding:18px;
+      background:
+        radial-gradient(1200px 700px at 12% 0%, rgba(255,255,255,.08), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      background-color:var(--card);
+      border:1px solid var(--border);
+      box-shadow:var(--shadow);
+      overflow:visible;
+    }
+    html[data-theme="light"] .card{
+      background:
+        radial-gradient(1200px 700px at 12% 0%, rgba(2,6,23,.06), transparent 55%),
+        linear-gradient(180deg, rgba(2,6,23,.03), rgba(2,6,23,.01));
+      background-color:var(--card);
+    }
+
+    /* Poster (keep your colors/patterns) */
+    .poster{
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.18),
+        0 0 0 1px rgba(255,255,255,.08),
+        0 12px 40px rgba(0,0,0,.55);
+
+      backdrop-filter: blur(2px);
+
+      border-radius:20px;
+      border:1px solid rgba(255,255,255,.10);
+      height:160px;
+      position:relative;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      padding:18px 18px 18px 22px;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    html[data-theme="light"] .poster{
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.18),
+        0 0 0 1px rgba(255,255,255,.08),
+        0 12px 40px rgba(0,0,0,.55);
+
+      backdrop-filter: blur(2px);
+border-color:rgba(2,6,23,.10)}
+
+    
+.poster::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    radial-gradient(circle at 10% 20%, rgba(255,255,255,.12), transparent 35%),
+    radial-gradient(circle at 80% 70%, rgba(255,255,255,.10), transparent 40%);
+  mix-blend-mode:overlay;
+  pointer-events:none;
+}
+
+    .poster::after{
+      content:"";
+      position:absolute; inset:-90px;
+      opacity:.38;
+      pointer-events:none;
+    }
+
+    .poster-text{position:relative; z-index:1;}
+    .poster-title{font-size:30px;font-weight:950;letter-spacing:.2px;line-height:1.02;}
+    .poster-sub{margin-top:8px;font-size:12px;letter-spacing:.38em;font-weight:900;opacity:.92;}
+
+    /* OS colors */
+
+    /* Windows year/edition posters (custom per request) */
+
+    /* 2019 Standard: Red + blue gradient, custom diagonal tech pattern */
+    .poster.win2019-standard{
+      background:
+        radial-gradient(900px 520px at 18% 18%, rgba(239,68,68,.62), transparent 58%),
+        radial-gradient(900px 520px at 92% 26%, rgba(30,64,175,.55), transparent 60%),
+        linear-gradient(135deg, rgba(37,99,235,.88), rgba(15,23,42,.96));
+    }
+    .poster.win2019-standard::after{
+      background:
+        repeating-linear-gradient(135deg, rgba(255,255,255,.22) 0 6px, transparent 6px 20px),
+        radial-gradient(circle at 12% 72%, rgba(255,255,255,.16) 2px, transparent 10px),
+        radial-gradient(circle at 78% 38%, rgba(255,255,255,.14) 2px, transparent 12px);
+      background-size:auto, 140px 140px, 160px 160px;
+    }
+
+    /* 2019 Datacenter: Dark blue + blue gradient, splotchy cloud pattern */
+    .poster.win2019-datacenter{
+      background:
+        radial-gradient(900px 520px at 16% 18%, rgba(37,99,235,.52), transparent 60%),
+        radial-gradient(900px 520px at 92% 34%, rgba(30,64,175,.70), transparent 62%),
+        linear-gradient(135deg, rgba(15,23,42,.98), rgba(30,64,175,.90));
+    }
+    .poster.win2019-datacenter::after{
+      background:
+        radial-gradient(circle at 18% 30%, rgba(255,255,255,.22) 0, transparent 44%),
+        radial-gradient(circle at 62% 62%, rgba(255,255,255,.18) 0, transparent 46%),
+        radial-gradient(circle at 86% 18%, rgba(255,255,255,.16) 0, transparent 40%),
+        radial-gradient(circle at 34% 82%, rgba(255,255,255,.14) 0, transparent 44%);
+      background-size: 180px 180px;
+      mix-blend-mode: overlay;
+      opacity:.55;
+    }
+
+    /* 2022 Standard: Dark red + blue gradient, angular grid pattern (different) */
+    .poster.win2022-standard{
+      background:
+        radial-gradient(900px 520px at 20% 18%, rgba(185,28,28,.68), transparent 58%),
+        radial-gradient(900px 520px at 92% 28%, rgba(37,99,235,.60), transparent 62%),
+        linear-gradient(135deg, rgba(30,64,175,.86), rgba(15,23,42,.97));
+    }
+    .poster.win2022-standard::after{
+      background:
+        linear-gradient(rgba(255,255,255,.16) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.16) 1px, transparent 1px),
+        repeating-linear-gradient(45deg, rgba(255,255,255,.14) 0 3px, transparent 3px 14px);
+      background-size: 18px 18px, 18px 18px, auto;
+      opacity:.52;
+    }
+
+    /* 2022 Datacenter: Dark blue + blue gradient, mesh-dot pattern (different) */
+    .poster.win2022-datacenter{
+      background:
+        radial-gradient(900px 520px at 20% 16%, rgba(30,64,175,.72), transparent 60%),
+        radial-gradient(900px 520px at 92% 36%, rgba(37,99,235,.52), transparent 62%),
+        linear-gradient(135deg, rgba(15,23,42,.98), rgba(30,64,175,.92));
+    }
+    .poster.win2022-datacenter::after{
+      background:
+        radial-gradient(circle at 25% 35%, rgba(255,255,255,.18) 2px, transparent 6px),
+        radial-gradient(circle at 55% 60%, rgba(255,255,255,.16) 2px, transparent 7px),
+        radial-gradient(circle at 78% 28%, rgba(255,255,255,.14) 2px, transparent 6px);
+      background-size: 34px 34px;
+      opacity:.58;
+    }
+
+    /* 2025 Standard: Dark red + blue gradient, shard pattern (different) */
+    .poster.win2025-standard{
+      background:
+        radial-gradient(900px 520px at 18% 18%, rgba(153,27,27,.70), transparent 58%),
+        radial-gradient(900px 520px at 92% 26%, rgba(29,78,216,.62), transparent 62%),
+        linear-gradient(135deg, rgba(37,99,235,.86), rgba(15,23,42,.98));
+    }
+    .poster.win2025-standard::after{
+      background:
+        conic-gradient(from 210deg at 30% 40%, rgba(255,255,255,.18), transparent 22%, rgba(255,255,255,.14) 40%, transparent 62%, rgba(255,255,255,.10)),
+        repeating-linear-gradient(120deg, rgba(255,255,255,.12) 0 2px, transparent 2px 12px);
+      opacity:.52;
+    }
+
+    /* 2025 Datacenter: Dark blue + blue gradient, contour/wave pattern (different) */
+    .poster.win2025-datacenter{
+      background:
+        radial-gradient(900px 520px at 22% 18%, rgba(30,64,175,.76), transparent 60%),
+        radial-gradient(900px 520px at 92% 34%, rgba(37,99,235,.52), transparent 62%),
+        linear-gradient(135deg, rgba(15,23,42,.98), rgba(30,64,175,.92));
+    }
+    .poster.win2025-datacenter::after{
+      background:
+        repeating-radial-gradient(circle at 30% 40%, rgba(255,255,255,.16) 0 2px, transparent 2px 10px),
+        repeating-linear-gradient(0deg, rgba(255,255,255,.10) 0 2px, transparent 2px 16px);
+      opacity:.55;
+    }
+
+
+    .poster.truenas{
+      background:
+        linear-gradient(135deg, rgba(15,80,140,.95), rgba(20,120,190,.95));
+    }
+    .poster.truenas::before{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        repeating-linear-gradient(
+          135deg,
+          rgba(255,255,255,.10) 0,
+          rgba(255,255,255,.10) 6px,
+          rgba(255,255,255,0) 6px,
+          rgba(255,255,255,0) 16px
+        );
+      opacity:.85;
+      pointer-events:none;
+      z-index:1;
+    }
+    .poster.truenas::after{
+      content:"";
+      position:absolute; inset:0;
+      background:
+        linear-gradient(
+          180deg,
+          rgba(0,0,0,.15),
+          rgba(0,0,0,.35)
+        );
+      pointer-events:none;
+      z-index:1;
+    }
+
+        .poster.windows{background:
+      radial-gradient(900px 520px at 20% 0%, rgba(59,130,246,.42), transparent 60%),
+      radial-gradient(900px 520px at 110% 40%, rgba(30,64,175,.36), transparent 60%),
+      linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.02));}
+    .poster.linux{background:
+      radial-gradient(900px 520px at 20% 0%, rgba(34,197,94,.40), transparent 60%),
+      radial-gradient(900px 520px at 110% 40%, rgba(22,163,74,.34), transparent 60%),
+      linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.02));}
+    .poster.proxmox{background:
+      radial-gradient(900px 520px at 20% 0%, rgba(249,115,22,.42), transparent 60%),
+      radial-gradient(900px 520px at 110% 40%, rgba(234,88,12,.36), transparent 60%),
+      linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.02));}
+    .poster.esxi{background:
+      radial-gradient(900px 520px at 20% 0%, rgba(168,85,247,.42), transparent 60%),
+      radial-gradient(900px 520px at 110% 40%, rgba(124,58,237,.36), transparent 60%),
+      linear-gradient(135deg, rgba(255,255,255,.10), rgba(255,255,255,.02));}
+
+    
+    /* Unique patterns per OS */
+        .poster.windows::after{
+      background: linear-gradient(rgba(255,255,255,.10) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(255,255,255,.10) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .poster.linux::after{ background: radial-gradient(circle, rgba(255,255,255,.14) 2px, transparent 3px) 0 0/22px 22px; }
+    .poster.proxmox::after{ background: repeating-linear-gradient(0deg, rgba(255,255,255,.10) 0, rgba(255,255,255,.10) 4px, transparent 4px, transparent 14px); }
+    .poster.esxi::after{ background: repeating-linear-gradient(90deg, rgba(255,255,255,.10) 0, rgba(255,255,255,.10) 3px, transparent 3px, transparent 16px); }
+
+    /* Pills row like screenshot: Hostname + Launch */
+    .meta-row{margin-top:14px;display:flex;gap:12px;flex-wrap:wrap;}
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:12px 14px;
+      border-radius:16px;
+      border:1px solid var(--chipBorder);
+      background:var(--chip2);
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+      font-weight:950;
+      font-size:13px;
+      color:var(--text);
+      min-height:44px;
+    }
+    .pill span{color:var(--muted);font-weight:900}
+    .pill.launch{
+      cursor:pointer;
+      background: linear-gradient(180deg, rgba(14,165,233,.95), rgba(37,99,235,.92));
+      border-color: rgba(14,165,233,.35);
+      color:#fff;
+      padding:12px 16px;
+    }
+    .pill.launch:hover{ filter: brightness(1.08); }
+    .pill.launch:disabled{opacity:.45;cursor:not-allowed;filter:none;}
+
+    /* Kebab (white dots) + floating menu */
+    .kebab{
+      position:absolute; top:22px; right:22px;
+      width:36px;height:36px;
+      border-radius:14px;
+      border:1px solid var(--chipBorder);
+      background:rgba(255,255,255,.06);
+      color:#fff;
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer; z-index:6;
+      font-size:22px; line-height:1;
+      user-select:none;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+    }
+    html[data-theme="light"] .kebab{ background:rgba(2,6,23,.06); color:#fff; }
+    .kebab:hover{background:rgba(255,255,255,.10)}
+    html[data-theme="light"] .kebab:hover{background:rgba(2,6,23,.10)}
+
+    .menu{
+      position:absolute; top:64px; right:22px;
+      width:230px;
+      border-radius:16px;
+      border:1px solid var(--border);
+      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+      background-color:var(--panel);
+      box-shadow:0 20px 50px rgba(0,0,0,.38);
+      padding:8px;
+      display:none;
+      z-index:9999;}
+    .menu.open{display:block}
+    .menu button{
+      width:100%;
+      background:transparent;
+      border:1px solid transparent;
+      color:var(--text);
+      padding:11px 12px;
+      border-radius:14px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      font-weight:950;
+      cursor:pointer;
+      text-align:left;
+    }
+    .menu button:hover{background:rgba(255,255,255,.08); border-color:var(--border)}
+    html[data-theme="light"] .menu button:hover{background:rgba(2,6,23,.06)}
+    .menu button:disabled{opacity:.45;cursor:not-allowed}
+    .menu .dangerItem{
+      color:#fff;
+      background:rgba(220,38,38,.12);
+      border-color:rgba(220,38,38,.25);
+    }
+    .menu .dangerItem:hover{background:rgba(220,38,38,.18)}
+    .menu .sep{height:1px;background:var(--border); margin:6px 6px;}
+
+    /* Dialog */
+    dialog{
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:20px;
+      background:var(--panel);
+      color:var(--text);
+      width:min(560px, calc(100vw - 32px));
+      box-shadow:0 20px 50px rgba(0,0,0,.30);
+    }
+    dialog::backdrop{background:rgba(0,0,0,.55)}
+    label{display:block;margin-top:12px;font-size:14px;color:var(--muted);font-weight:850}
+    input,select{
+      width:100%;
+      padding:11px 12px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      color:var(--text);
+      margin-top:6px;
+    }
+    select{ background-color:var(--panel); color:var(--text); }
+    select option{ background-color:var(--panel); color:var(--text); }
+    html[data-theme="light"] select, html[data-theme="light"] select option{ background-color:#fff; color:#0b1220; }
+    .row-actions{margin-top:16px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;}
+
+    .tiny{font-size:12px;color:var(--muted);padding:0 4px}
+
+    @media (max-width:720px){
+      aside{width:240px}
+      body.sidebar-collapsed aside{width:72px}
+      main{padding:18px}
+      .kebab{top:18px;right:18px}
+      .menu{right:18px}
+    }
+  </style>
+</head>
+
+<body>
+  <aside>
+    <div class="brand">
+      <div class="logo"><img id="brandLogo" alt="Logo" /></div>
+      <div class="brand-text">
+        <div class="brand-title">Servers</div>
+        <div class="brand-sub">Dashboard</div>
+      </div>
+    </div>
+
+    <div class="side-actions">
+      <button id="addServerBtn" class="btn primary" type="button">
+        <span class="icon" aria-hidden="true">➕</span>
+        <span class="label">Add Server</span>
+      </button>
+
+      
+
+      <button id="uploadLogoBtn" class="btn" type="button">
+        <span class="icon" aria-hidden="true">🖼️</span>
+        <span class="label">Upload Logo</span>
+      </button>
+      <input id="logoInput" type="file" accept="image/*" hidden />
+      <div id="logoStatus" class="tiny"></div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button id="themeToggle" class="btn" type="button">
+        <span class="icon" aria-hidden="true">🌓</span>
+        <span class="label">Theme</span>
+      </button>
+      <button id="sidebarToggle" class="btn" type="button">
+        <span class="icon" aria-hidden="true">⟨⟨</span>
+        <span class="label" id="sidebarLabel">Hide</span>
+      </button>
+    </div>
+  </aside>
+
+  <main>
+    <div id="warn" class="warn"></div>
+    <h1>Dashboard</h1>
+    
+
+    <div id="serverGrid" class="grid"></div>
+    <div id="emptyHint" class="hint" style="display:none;">No servers yet — click “Add Server”.</div>
+  </main>
+
+  <!-- Add -->
+  <dialog id="addServerDialog">
+    <h3 style="margin:0 0 10px 0;">Add Server</h3>
+
+    <label>Server Type
+      <select id="typeInput">
+        <option>TrueNAS Scale</option>
+        <option>Windows Server 2019 Standard</option>
+        <option>Windows Server 2019 Datacenter</option>
+        <option>Windows Server 2022 Standard</option>
+        <option>Windows Server 2022 Datacenter</option>
+        <option>Windows Server 2025 Standard</option>
+        <option>Windows Server 2025 Datacenter</option>
+        <option>Linux</option>
+        <option>Proxmox</option>
+        <option>ESXI</option>
+      </select>
+    </label>
+
+    <label>Hostname <input id="hostnameInput" /></label>
+    <label>Tailscale IP <input id="tailscaleInput" placeholder="100.x.x.x" /></label>
+    <label>Local IP <input id="localInput" placeholder="192.168.x.x" /></label>
+
+    <div class="row-actions">
+      <button id="addCancelBtn" class="btn" type="button">Cancel</button>
+      <button id="saveServerBtn" class="btn primary" type="button">Save</button>
+    </div>
+  </dialog>
+
+  <!-- Edit -->
+  <dialog id="editServerDialog">
+    <h3 style="margin:0 0 10px 0;">Edit Server</h3>
+    <input id="editId" type="hidden" />
+
+    <label>Server Type
+      <select id="editTypeInput">
+        <option>TrueNAS Scale</option>
+        <option>Windows Server 2019 Standard</option>
+        <option>Windows Server 2019 Datacenter</option>
+        <option>Windows Server 2022 Standard</option>
+        <option>Windows Server 2022 Datacenter</option>
+        <option>Windows Server 2025 Standard</option>
+        <option>Windows Server 2025 Datacenter</option>
+        <option>Linux</option>
+        <option>Proxmox</option>
+        <option>ESXI</option>
+      </select>
+    </label>
+
+    <label>Hostname <input id="editHostnameInput" /></label>
+    <label>Tailscale IP <input id="editTailscaleInput" placeholder="100.x.x.x" /></label>
+    <label>Local IP <input id="editLocalInput" placeholder="192.168.x.x" /></label>
+
+    <div class="row-actions">
+      <button id="editCancelBtn" class="btn" type="button">Cancel</button>
+      <button id="updateServerBtn" class="btn primary" type="button">Update</button>
+    </div>
+  </dialog>
+
+  <!-- Info -->
+  <dialog id="infoDialog">
+    <div id="infoContent"></div>
+    <div class="row-actions">
+      <button id="infoCloseBtn" class="btn" type="button">Close</button>
+    </div>
+  </dialog>
+
+  <script>
+  (function(){
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (str) => String(str ?? "")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+
+    // ---- API config ----
+        // ---- API configuration ----
+    // If served behind the same domain (recommended), leave API_BASE = "" and the UI will call /api/...
+    // If you are testing with separate ports, set API_BASE like: "http://localhost:8000"
+    const API_BASE = "";
+    const API = (path) => `${API_BASE}/api${path}`;
+
+const TABLE = "servers";
+
+    // Optional logo storage
+    // ---- Warn UI ----
+    const warn = $("warn");
+    const showWarn = (msg) => {
+      if (!warn) return;
+      warn.style.display = "block";
+      warn.innerHTML = msg;
+    };
+    const clearWarn = () => {
+      if (!warn) return;
+      warn.style.display = "none";
+      warn.innerHTML = "";
+    };
+
+    // ---- Theme ----
+    const root = document.documentElement;
+    function applyTheme(t){
+      root.dataset.theme = t;
+      localStorage.setItem("theme", t);
+    }
+    applyTheme(localStorage.getItem("theme") === "light" ? "light" : "dark");
+    $("themeToggle")?.addEventListener("click", () => applyTheme(root.dataset.theme === "light" ? "dark" : "light"));
+
+    // ---- Sidebar collapse ----
+    const sidebarLabel = $("sidebarLabel");
+    function applySidebarCollapsed(collapsed){
+      document.body.classList.toggle("sidebar-collapsed", collapsed);
+      localStorage.setItem("sidebarCollapsed", collapsed ? "1" : "0");
+      if (sidebarLabel) sidebarLabel.textContent = collapsed ? "Show" : "Hide";
+      const icon = $("sidebarToggle")?.querySelector(".icon");
+      if (icon) icon.textContent = collapsed ? "⟩⟩" : "⟨⟨";
+    }
+    applySidebarCollapsed(localStorage.getItem("sidebarCollapsed") === "1");
+    $("sidebarToggle")?.addEventListener("click", () => applySidebarCollapsed(!document.body.classList.contains("sidebar-collapsed")));
+
+    // ---- IMPORTANT: avoid column name 'type' mismatch ----
+    // Your error: "Could not find the 'type' column ..."
+    // This file uses column name: server_type
+    const COL_SERVER_TYPE = "server_type";
+
+    // ---- Map type -> OS class and poster sublabel ----
+    function typeToOs(serverType){
+      const t = String(serverType || "").toLowerCase();
+
+      // Windows year/edition specific posters
+      if (t.includes("windows") && t.includes("2019") && t.includes("standard")) return "win2019-standard";
+      if (t.includes("windows") && t.includes("2019") && t.includes("datacenter")) return "win2019-datacenter";
+      if (t.includes("windows") && t.includes("2022") && t.includes("standard")) return "win2022-standard";
+      if (t.includes("windows") && t.includes("2022") && t.includes("datacenter")) return "win2022-datacenter";
+      if (t.includes("windows") && t.includes("2025") && t.includes("standard")) return "win2025-standard";
+      if (t.includes("windows") && t.includes("2025") && t.includes("datacenter")) return "win2025-datacenter";
+
+      // Other posters
+      if (t.includes("truenas")) return "truenas";
+      if (t.includes("proxmox")) return "proxmox";
+      if (t.includes("esxi")) return "esxi";
+      if (t.includes("windows")) return "win2025-datacenter";
+      return "linux";
+    }
+
+    function typeToTitleSubtitle(serverType){
+      const s = String(serverType || "").trim();
+      const t = s.toLowerCase();
+
+      // TrueNAS
+      if (t.startsWith("truenas")){
+        return { title: "TrueNAS", subtitle: "Scale" };
+      }
+
+      // Windows Server (always title "Windows Server")
+      if (t.startsWith("windows server")){
+        const m = s.match(/Windows\s+Server\s+(\d{4})\s+(Standard|Datacenter)/i);
+        if (m){
+          const year = m[1];
+          const editionRaw = m[2].toLowerCase();
+          const edition = editionRaw === "datacenter" ? "Datacenter" : "Standard";
+          return { title: "Windows Server", subtitle: `${year} ${edition}` };
+        }
+        return { title: "Windows Server", subtitle: "Server" };
+      }
+
+      // Defaults
+      return { title: s || "Server", subtitle: "SERVER" };
+    }
+
+
+    // ---- State ----
+    let servers = [];
+    const grid = $("serverGrid");
+    const emptyHint = $("emptyHint");
+
+    // ---- Floating kebab behavior ----
+    let openMenuEl = null;
+    function closeMenu(){
+      if (openMenuEl){
+        openMenuEl.classList.remove("open");
+        openMenuEl = null;
+      }
+    }
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".menu") && !e.target.closest(".kebab")) closeMenu();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeMenu();
+    });
+
+        // ---- Backend API CRUD (MySQL via FastAPI) ----
+    async function apiFetch(path, opts){
+      const res = await fetch(API(path), opts);
+      if (!res.ok){
+        let msg = "";
+        try{ msg = await res.text(); }catch{}
+        throw new Error(`HTTP ${res.status} ${res.statusText}${msg ? " - " + msg : ""}`);
+      }
+      const ct = res.headers.get("content-type") || "";
+      if (ct.includes("application/json")) return await res.json();
+      return await res.text();
+    }
+
+    async function fetchServers(){
+      clearWarn();
+      try{
+        const data = await apiFetch("/servers");
+        servers = Array.isArray(data) ? data : [];
+        render();
+      }catch(err){
+        showWarn("API error loading servers: " + escapeHtml(err.message || String(err)));
+      }
+    }
+
+    async function insertServer(row){
+      await apiFetch("/servers", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(row)
+      });
+    }
+
+    async function updateServer(id, patch){
+      await apiFetch(`/servers/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(patch)
+      });
+    }
+
+    async function deleteServerRow(id){
+      await apiFetch(`/servers/${encodeURIComponent(id)}`, { method: "DELETE" });
+    }
+
+    async function loadBranding(){
+      try{
+        const img = $("brandLogo");
+        if (!img) return;
+        img.src = `${API_BASE}/api/branding/logo?ts=${Date.now()}`;
+      }catch{}
+    }
+// ---- Dialogs ----
+    const addDialog = $("addServerDialog");
+    const editDialog = $("editServerDialog");
+    const infoDialog = $("infoDialog");
+
+    $("addServerBtn")?.addEventListener("click", () => {
+addDialog?.showModal();
+    });
+    $("addCancelBtn")?.addEventListener("click", () => addDialog?.close());
+    $("editCancelBtn")?.addEventListener("click", () => editDialog?.close());
+    $("infoCloseBtn")?.addEventListener("click", () => infoDialog?.close());
+    $("refreshBtn")?.addEventListener("click", () => fetchServers());
+
+    $("saveServerBtn")?.addEventListener("click", async () => {
+const hostname = $("hostnameInput")?.value?.trim() || "";
+      if (!hostname) return alert("Hostname required");
+
+      const serverType = $("typeInput")?.value || "Linux";
+      const row = {
+        id: (crypto?.randomUUID?.() || ("id_" + Math.random().toString(16).slice(2) + Date.now())),
+        [COL_SERVER_TYPE]: serverType,
+        os: typeToOs(serverType),
+        hostname,
+        tailscale_ip: $("tailscaleInput")?.value?.trim() || "",
+        local_ip: $("localInput")?.value?.trim() || ""
+      };
+
+      try{
+        $("saveServerBtn").disabled = true;
+        await insertServer(row);
+        addDialog?.close();
+
+        if ($("hostnameInput")) $("hostnameInput").value = "";
+        if ($("tailscaleInput")) $("tailscaleInput").value = "";
+        if ($("localInput")) $("localInput").value = "";
+        if ($("typeInput")) $("typeInput").selectedIndex = 0;
+
+        await fetchServers();
+      }catch(err){
+        alert(err?.message || String(err));
+      }finally{
+        $("saveServerBtn").disabled = false;
+      }
+    });
+
+    $("updateServerBtn")?.addEventListener("click", async () => {
+const id = $("editId")?.value || "";
+      const hostname = $("editHostnameInput")?.value?.trim() || "";
+      if (!hostname) return alert("Hostname required");
+
+      const serverType = $("editTypeInput")?.value || "Linux";
+      const patch = {
+        [COL_SERVER_TYPE]: serverType,
+        os: typeToOs(serverType),
+        hostname,
+        tailscale_ip: $("editTailscaleInput")?.value?.trim() || "",
+        local_ip: $("editLocalInput")?.value?.trim() || ""
+      };
+
+      try{
+        $("updateServerBtn").disabled = true;
+        await updateServer(id, patch);
+        editDialog?.close();
+        await fetchServers();
+      }catch(err){
+        alert(err?.message || String(err));
+      }finally{
+        $("updateServerBtn").disabled = false;
+      }
+    });
+
+    function openEdit(server){
+      if ($("editId")) $("editId").value = server.id || "";
+      if ($("editTypeInput")) $("editTypeInput").value = server[COL_SERVER_TYPE] || "Linux";
+      if ($("editHostnameInput")) $("editHostnameInput").value = server.hostname || "";
+      if ($("editTailscaleInput")) $("editTailscaleInput").value = server.tailscale_ip || "";
+      if ($("editLocalInput")) $("editLocalInput").value = server.local_ip || "";
+      editDialog?.showModal();
+    }
+
+    function showInfo(server){
+      const el = $("infoContent");
+      const st = server[COL_SERVER_TYPE] || "Server";
+      if (el){
+        el.innerHTML = `
+          <h3 style="margin:0 0 10px 0;">${escapeHtml(st)}</h3>
+          <p><b>Hostname:</b> ${escapeHtml(server.hostname || "—")}</p>
+          <p><b>Tailscale IP:</b> ${escapeHtml(server.tailscale_ip || "—")}</p>
+          <p><b>Local IP:</b> ${escapeHtml(server.local_ip || "—")}</p>
+          <p><b>Poster Theme:</b> ${escapeHtml(server.os || "—")}</p>
+        `;
+      }
+      infoDialog?.showModal();
+    }
+
+    async function doDelete(server){
+      if (!confirm("Delete " + (server.hostname || "this server") + "?")) return;
+      try{
+        await deleteServerRow(server.id);
+        await fetchServers();
+      }catch(err){
+        alert(err?.message || String(err));
+      }
+    }
+
+    // ---- Render ----
+    function render(){
+      if (!grid) return;
+      grid.innerHTML = "";
+      if (emptyHint) emptyHint.style.display = servers.length ? "none" : "block";
+      servers.forEach(renderServer);
+    }
+
+    function renderServer(server){
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const serverType = server[COL_SERVER_TYPE] || "Server";
+      const osClass = server.os || typeToOs(serverType);
+      const meta = typeToTitleSubtitle(serverType);
+      const title = meta.title;
+      const sub = meta.subtitle;
+
+      card.innerHTML = `
+        <button class="kebab" type="button" aria-label="More" title="More">⋯</button>
+        <div class="menu" role="menu" aria-label="Server actions">
+          <button type="button" data-action="info">Info <span>ℹ️</span></button>
+          <button type="button" data-action="edit">Edit <span>✏️</span></button>
+          <div class="sep"></div>
+          <button type="button" data-action="tailscale" ${server.tailscale_ip ? "" : "disabled"}>Open Tailscale <span>🌐</span></button>
+          <button type="button" data-action="local" ${server.local_ip ? "" : "disabled"}>Open Local <span>🏠</span></button>
+          <div class="sep"></div>
+          <button type="button" class="dangerItem" data-action="delete">Delete <span>🗑️</span></button>
+        </div>
+
+        <div class="poster ${osClass}">
+          <div class="poster-text">
+            <div class="poster-title">${escapeHtml(title)}</div>
+            <div class="poster-sub">${escapeHtml(sub)}</div>
+          </div>
+        </div>
+
+        <div class="meta-row">
+          <div class="pill"><span>Hostname:</span> ${escapeHtml(server.hostname || "—")}</div>
+          <button class="pill launch" type="button" ${server.tailscale_ip ? "" : "disabled"} data-action="launch">Launch</button>
+        </div>
+      `;
+
+      const kebab = card.querySelector(".kebab");
+      const menu = card.querySelector(".menu");
+
+      kebab?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (openMenuEl && openMenuEl !== menu) openMenuEl.classList.remove("open");
+        menu.classList.toggle("open");
+        openMenuEl = menu.classList.contains("open") ? menu : null;
+      });
+
+      card.querySelector('[data-action="launch"]')?.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (!server.tailscale_ip) return;
+        window.open("http://" + server.tailscale_ip, "_blank", "noopener,noreferrer");
+      });
+
+      menu?.querySelectorAll("button[data-action]")?.forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (btn.disabled) return;
+          closeMenu();
+          const action = btn.getAttribute("data-action");
+          if (action === "info") return showInfo(server);
+          if (action === "edit") return openEdit(server);
+          if (action === "tailscale") return window.open("http://" + server.tailscale_ip, "_blank", "noopener,noreferrer");
+          if (action === "local") return window.open("http://" + server.local_ip, "_blank", "noopener,noreferrer");
+          if (action === "delete") return doDelete(server);
+        });
+      });
+
+      grid.appendChild(card);
+    }
+
+    // ---- Branding logo upload ----
+    const brandLogo = $("brandLogo");
+    const uploadLogoBtn = $("uploadLogoBtn");
+    const logoInput = $("logoInput");
+    const logoStatus = $("logoStatus");
+    const setLogoStatus = (msg) => { if (logoStatus) logoStatus.textContent = msg || ""; };
+
+        function refreshLogo(){
+      if (!brandLogo) return;
+      brandLogo.src = `${API_BASE}/api/branding/logo?ts=${Date.now()}`;
+    }
+    refreshLogo();
+
+    uploadLogoBtn?.addEventListener("click", () => logoInput?.click());
+    logoInput?.addEventListener("change", async () => {
+      const file = logoInput.files && logoInput.files[0];
+      if (!file) return;
+      setLogoStatus("Uploading...");
+      try{
+        const fd = new FormData();
+        fd.append("file", file);
+        await apiFetch("/branding/logo", { method: "POST", body: fd });
+        setLogoStatus("Uploaded ✓");
+        refreshLogo();
+      }catch(err){
+        setLogoStatus("Upload failed");
+        alert(err.message || String(err));
+      }finally{
+        logoInput.value = "";
+      }
+    });
+
+// ---- init ----
+    fetchServers();
+  })();
+  </script>
+</body>
+</html>
